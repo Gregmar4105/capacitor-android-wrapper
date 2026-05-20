@@ -1,17 +1,32 @@
 package lm2bicycletrading.larable.dev;
 
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.util.Log;
+import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebChromeClient;
 import com.onesignal.OneSignal;
 import com.onesignal.Continue;
 import com.onesignal.user.subscriptions.IPushSubscriptionObserver;
 import com.onesignal.user.subscriptions.PushSubscriptionChangedState;
 import com.onesignal.user.subscriptions.PushSubscriptionState;
+
+import java.util.Collections;
 
 public class MainActivity extends BridgeActivity {
 
@@ -40,6 +55,94 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         });
+
+        // Initialize custom WebView printing and custom multi-photo file chooser
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            // Register JavaScript Interface for Native Android Printing
+            webView.addJavascriptInterface(new AndroidPrintInterface(), "AndroidPrint");
+            Log.i(TAG, "Registered JavaScript Interface 'AndroidPrint'");
+
+            // Enable document start script to override window.print
+            try {
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                    WebViewCompat.addDocumentStartJavaScript(
+                        webView,
+                        "window.print = function() { if (window.AndroidPrint) { window.AndroidPrint.print(); } };",
+                        Collections.singleton("*")
+                    );
+                    Log.i(TAG, "Document start script for printing registered successfully.");
+                } else {
+                    Log.w(TAG, "DOCUMENT_START_SCRIPT is not supported on this device. Fallback to direct window.AndroidPrint.print() calls.");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error registering document start script: " + e.getMessage());
+            }
+
+            // Set custom WebChromeClient that overrides file/photo choosing behavior to force multiple selection
+            webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+                @Override
+                public boolean onShowFileChooser(
+                    WebView webView,
+                    ValueCallback<Uri[]> filePathCallback,
+                    FileChooserParams fileChooserParams
+                ) {
+                    Log.d(TAG, "onShowFileChooser called");
+                    
+                    boolean isImage = false;
+                    String[] acceptTypes = fileChooserParams.getAcceptTypes();
+                    if (acceptTypes != null) {
+                        for (String type : acceptTypes) {
+                            if (type != null && (type.contains("image/") || type.contains("img") || type.isEmpty())) {
+                                isImage = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isImage) {
+                        Log.i(TAG, "Forcing multiple selection for image/photo selector");
+                        FileChooserParams customParams = new FileChooserParams() {
+                            @Override
+                            public int getMode() {
+                                return MODE_OPEN_MULTIPLE;
+                            }
+
+                            @Override
+                            public String[] getAcceptTypes() {
+                                return fileChooserParams.getAcceptTypes();
+                            }
+
+                            @Override
+                            public boolean isCaptureEnabled() {
+                                return fileChooserParams.isCaptureEnabled();
+                            }
+
+                            @Override
+                            public CharSequence getTitle() {
+                                return fileChooserParams.getTitle();
+                            }
+
+                            @Override
+                            public String getFilenameHint() {
+                                return fileChooserParams.getFilenameHint();
+                            }
+
+                            @Override
+                            public Intent createIntent() {
+                                Intent intent = fileChooserParams.createIntent();
+                                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                                return intent;
+                            }
+                        };
+                        return super.onShowFileChooser(webView, filePathCallback, customParams);
+                    }
+
+                    return super.onShowFileChooser(webView, filePathCallback, fileChooserParams);
+                }
+            });
+            Log.i(TAG, "Custom BridgeWebChromeClient configured for multi-photo selection.");
+        }
 
         // Step 1: Initialize OneSignal SDK
         OneSignal.initWithContext(this, ONESIGNAL_APP_ID);
@@ -137,5 +240,35 @@ public class MainActivity extends BridgeActivity {
                 Log.e(TAG, "Failed to inject player ID: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * JavaScript Interface to bridge window.print() on the website to native Android PrintManager.
+     */
+    public class AndroidPrintInterface {
+        @JavascriptInterface
+        public void print() {
+            Log.i(TAG, "AndroidPrintInterface.print() invoked from JS");
+            runOnUiThread(() -> {
+                try {
+                    WebView webView = getBridge().getWebView();
+                    if (webView != null) {
+                        PrintManager printManager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+                        if (printManager != null) {
+                            String jobName = (webView.getTitle() != null ? webView.getTitle() : "LM2 Bicycle Trading Document");
+                            PrintDocumentAdapter printAdapter = webView.createPrintDocumentAdapter(jobName);
+                            printManager.print(jobName, printAdapter, new PrintAttributes.Builder().build());
+                            Log.i(TAG, "Print job sent to system spooler.");
+                        } else {
+                            Log.e(TAG, "System PrintManager not available.");
+                        }
+                    } else {
+                        Log.e(TAG, "WebView is null, cannot trigger print.");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error executing native print job: " + e.getMessage(), e);
+                }
+            });
+        }
     }
 }
