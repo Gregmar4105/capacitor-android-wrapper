@@ -1,0 +1,13 @@
+{
+  "appId": "lm2bicycletrading.larable.dev",
+  "appName": "LM2 Bicycle Trading",
+  "webDir": "public",
+  "server": {
+    "url": "https://lm2bicycletrading.larable.dev",
+    "cleartext": true,
+    "allowNavigation": [
+      "lm2bicycletrading.larable.dev",
+      "*.larable.dev"
+    ]
+  }
+}

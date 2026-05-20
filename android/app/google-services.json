@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "552789721412",
+    "project_id": "lm2-bicycle-trading",
+    "storage_bucket": "lm2-bicycle-trading.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:552789721412:android:eb78ff49f44dc98a321711",
+        "android_client_info": {
+          "package_name": "lm2bicycletrading.larable.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAljdE2wxZd4gEtrNXZlN5VgDs6KXSLUgk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
